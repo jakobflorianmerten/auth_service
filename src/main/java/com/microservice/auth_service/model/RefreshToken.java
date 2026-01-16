@@ -46,10 +46,10 @@ public class RefreshToken {
     private Long id;
 
     /**
-     * SHA-256 Hash des Tokens (Base64-encoded, 44 Zeichen).
+     * SHA-256 Hash des JWT-Tokens (Base64-encoded).
      * Der Klartext-Token wird nie gespeichert.
      */
-    @Column(name = "token_hash", nullable = false, unique = true, length = 64)
+    @Column(name = "token_hash", nullable = false, unique = true, length = 255)
     private String tokenHash;
 
     /**

@@ -47,6 +47,9 @@ public class JwtService {
     @Value("${jwt.access-token-expiration}")
     private long accessTokenExpiration;
 
+    @Value("${jwt.refresh-token-expiration}")
+    private long refreshTokenExpiration;
+
     @Value("${app.issuer}")
     private String issuer;
 
@@ -101,6 +104,25 @@ public class JwtService {
     }
 
     /**
+     * Generiert einen Refresh Token als JWT.
+     *
+     * Der Refresh Token wird mit denselben RSA-Schlüsseln signiert wie der Access Token,
+     * hat aber eine längere Gültigkeitsdauer.
+     *
+     * @param userDetails Spring Security UserDetails (Username wird als Subject verwendet)
+     * @return signierter JWT-String
+     */
+    public String generateRefreshToken(UserDetails userDetails) {
+        return Jwts.builder()
+                .subject(userDetails.getUsername())
+                .issuer(issuer)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + refreshTokenExpiration))
+                .signWith(privateKey)
+                .compact();
+    }
+
+    /**
      * Extrahiert den Username (E-Mail) aus einem Token.
      *
      * @param token JWT-String
@@ -137,6 +159,25 @@ public class JwtService {
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
         return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+    }
+
+    /**
+     * Validiert einen Refresh Token (JWT-Signatur und Ablaufdatum).
+     *
+     * Prüft nur die kryptographische Signatur und das Ablaufdatum,
+     * ohne UserDetails-Abgleich. Die DB-Validierung erfolgt separat
+     * im RefreshTokenService.
+     *
+     * @param token JWT-String
+     * @return true wenn Signatur gültig und Token nicht abgelaufen
+     */
+    public boolean isRefreshTokenValid(String token) {
+        try {
+            extractAllClaims(token);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**

@@ -15,7 +15,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Base64;
-import java.util.UUID;
 
 /**
  * Service für Refresh-Token-Verwaltung.
@@ -43,28 +42,30 @@ import java.util.UUID;
 public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
+    private final JwtService jwtService;
 
     @Value("${jwt.refresh-token-expiration:604800000}")
     private long refreshTokenExpiration;
 
-    public RefreshTokenService(RefreshTokenRepository refreshTokenRepository) {
+    public RefreshTokenService(RefreshTokenRepository refreshTokenRepository, JwtService jwtService) {
         this.refreshTokenRepository = refreshTokenRepository;
+        this.jwtService = jwtService;
     }
 
     /**
      * Erstellt einen neuen Refresh-Token für einen User.
      *
-     * Generiert einen UUID-basierten Token, speichert dessen Hash in der
+     * Generiert einen JWT-basierten Token, speichert dessen Hash in der
      * Datenbank und gibt den Klartext-Token zurück. Der Client sieht den
      * Klartext nur dieses eine Mal.
      *
      * @param user       User, für den der Token erstellt wird
      * @param deviceInfo optionale Geräteinformationen (User-Agent, IP, etc.)
-     * @return Klartext-Token für den Client
+     * @return JWT-Token für den Client
      */
     @Transactional
     public String createRefreshToken(User user, String deviceInfo) {
-        String token = UUID.randomUUID().toString();
+        String token = jwtService.generateRefreshToken(user);
         String tokenHash = hashToken(token);
 
         LocalDateTime expiresAt = LocalDateTime.now()
@@ -88,21 +89,28 @@ public class RefreshTokenService {
      * Validiert einen Refresh-Token und aktualisiert den Last-Used-Timestamp.
      *
      * Prüft:
+     * - JWT-Signatur ist gültig und Token nicht abgelaufen
      * - Token existiert in der Datenbank
-     * - Token ist nicht abgelaufen
      * - Token ist nicht widerrufen
      *
-     * @param token Klartext-Token vom Client
+     * @param token JWT-Token vom Client
      * @return User, dem der Token gehört
      * @throws InvalidRefreshTokenException wenn Token ungültig, abgelaufen oder widerrufen
      */
     @Transactional
     public User validateAndUseToken(String token) {
+        // 1. JWT-Signatur und Ablaufdatum validieren
+        if (!jwtService.isRefreshTokenValid(token)) {
+            log.warn("Refresh token validation failed: invalid JWT signature or expired");
+            throw new InvalidRefreshTokenException();
+        }
+
+        // 2. DB-Lookup mit gehashtem Token
         String tokenHash = hashToken(token);
 
         RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> {
-                    log.warn("Refresh token validation failed: token not found");
+                    log.warn("Refresh token validation failed: token not found in database");
                     return new InvalidRefreshTokenException();
                 });
 
