@@ -68,7 +68,7 @@ public class SecurityConfig {
      * @throws Exception bei Konfigurationsfehlern
      */
     @Bean
-    public SecurityFilterChain springSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationProvider authenticationProvider) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -94,7 +94,7 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .logout(AbstractHttpConfigurer::disable)
-                .authenticationProvider(authenticationProvider())
+                .authenticationProvider(authenticationProvider)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -126,16 +126,6 @@ public class SecurityConfig {
 
 
     /**
-     * BCrypt Password Encoder für sichere Passwortverschlüsselung.
-     *
-     * @return BCryptPasswordEncoder mit Standard-Strength
-     */
-    @Bean
-    public BCryptPasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    /**
      * Authentication Provider für datenbankbasierte Authentifizierung.
      *
      * Verwendet UserService zum Laden der Benutzerdaten und BCrypt
@@ -144,9 +134,9 @@ public class SecurityConfig {
      * @return konfigurierter DaoAuthenticationProvider
      */
     @Bean
-    public AuthenticationProvider authenticationProvider() {
+    public AuthenticationProvider authenticationProvider(BCryptPasswordEncoder passwordEncoder) {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userService);
-        authProvider.setPasswordEncoder(passwordEncoder());
+        authProvider.setPasswordEncoder(passwordEncoder);
         return authProvider;
     }
 
